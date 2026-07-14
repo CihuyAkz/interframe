@@ -1,0 +1,118 @@
+plugins {
+    id 'net.neoforged.moddev' version '2.0.42-beta'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
+
+    exclusiveContent {
+        forRepository {
+            maven {
+                name "caffeinemcRepository"
+                url "https://maven.caffeinemc.net/snapshots"
+            }
+        }
+        filter {
+            includeGroup "net.caffeinemc"
+        }
+    }
+
+    mavenCentral()
+}
+
+neoForge {
+    version = project.neoforge_version
+
+    runs {
+        client {
+            client()
+        }
+    }
+
+    mods {
+        interframe {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+// --- Sodium 0.8 compile-time API extraction (identical approach to Foveate) -------------------------
+// Sodium 0.8 for NeoForge ships its real classes inside a JiJ'd nested jar, so they are not on the
+// compile classpath when depending on the Modrinth artifact normally. Extract that nested jar here so
+// our Sodium config integration (the Reese's-Sodium-Options-visible page) can compile against it.
+configurations {
+    sodiumDist { transitive = false }
+}
+
+dependencies {
+    sodiumDist "maven.modrinth:sodium:${project.sodium_version}"
+}
+
+def extractSodiumApi = tasks.register('extractSodiumApi', Copy) {
+    from({ zipTree(configurations.sodiumDist.singleFile) }) {
+        include 'META-INF/jarjar/net.caffeinemc.sodium-neoforge-*-mod.jar'
+        eachFile { it.relativePath = new org.gradle.api.file.RelativePath(true, 'sodium-api.jar') }
+        includeEmptyDirs = false
+    }
+    into layout.buildDirectory.dir('sodium-api')
+}
+
+dependencies {
+    // Compile against Sodium 0.8's real classes, extracted from its JiJ bundle (see extractSodiumApi).
+    compileOnly(files(layout.buildDirectory.file('sodium-api/sodium-api.jar')) { builtBy extractSodiumApi })
+    // Load Sodium on the dev-run classpath so a `runClient` works like a real install.
+    additionalRuntimeClasspath "maven.modrinth:sodium:${project.sodium_version}"
+
+    // --- Optional neural frame-interpolation backend ------------------------------------------------
+    // ONNX Runtime is the engine that runs the RIFE interpolation model. We compile OnnxSynthesizer
+    // against its API but DO NOT bundle it. We compile against the small CPU artifact (the API classes
+    // are identical to the GPU build); GPU providers (CUDA/DirectML) are selected reflectively at runtime
+    // so it works with whichever ORT build the user supplies. At runtime the backend only activates if
+    // onnxruntime is on the classpath; otherwise Interframe falls back to the built-in GPU
+    // reprojection/blend synthesizer, which needs no model. See README.
+    compileOnly "com.microsoft.onnxruntime:onnxruntime:${project.onnxruntime_version}"
+}
+
+def targetJavaVersion = 21
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = "UTF-8"
+    it.options.release = targetJavaVersion
+}
+
+java {
+    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
+    if (JavaVersion.current() < javaVersion) {
+        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    }
+}
+
+processResources {
+    def props = ["version": project.version]
+    inputs.properties(props)
+    filesMatching("META-INF/neoforge.mods.toml") {
+        expand props
+    }
+}
+
+jar {
+    from("LICENSE") {
+        rename { "${it}_${project.archives_base_name}" }
+    }
+}

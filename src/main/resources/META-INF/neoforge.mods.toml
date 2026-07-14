@@ -1,0 +1,57 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="interframe"
+version="${version}"
+displayName="Interframe"
+authors="falling_cloud"
+logoFile="assets/interframe/icon.png"
+description='''
+AI frame generation for Minecraft. Captures each finished frame and synthesises in-between frames to
+raise the perceived frame rate and smooth motion. Layered, graceful-degradation synthesiser: an
+always-correct cross-blend, a rotational motion-reprojection ("timewarp") for the common mouse-look case,
+and an optional neural RIFE backend (ONNX Runtime) for true learned interpolation. Configure it from
+Sodium's video settings (also rendered by Reese's Sodium Options). Composes with Sodium, Iris and Foveate.
+'''
+
+[[mixins]]
+config="interframe.mixins.json"
+
+[[dependencies.interframe]]
+modId="neoforge"
+type="required"
+versionRange="[21.1,)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.interframe]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1,1.22)"
+ordering="NONE"
+side="CLIENT"
+
+# Required only for the in-game config page; frame generation works without it (edit interframe.json).
+[[dependencies.interframe]]
+modId="sodium"
+type="optional"
+versionRange="[0.8,)"
+ordering="AFTER"
+side="CLIENT"
+
+[[dependencies.interframe]]
+modId="iris"
+type="optional"
+versionRange="*"
+ordering="AFTER"
+side="CLIENT"
+
+# Not a dependency, but capture must run after Foveate's VRS pass composites — load Interframe after it.
+[[dependencies.interframe]]
+modId="foveate"
+type="optional"
+versionRange="*"
+ordering="AFTER"
+side="CLIENT"
