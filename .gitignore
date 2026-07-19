@@ -11,3 +11,6 @@ bin/
 # Local dependency jars (other people's mods — not redistributable). Provided at runtime by the modpack.
 libs/*.jar
 !libs/README.md
+
+# Multi-loader ports (standalone projects, kept out of this repo)
+/ports/
